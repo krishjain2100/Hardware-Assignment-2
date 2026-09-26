@@ -1,3 +1,6 @@
 build/
 sim
 *.vcd
+waveforms/
+.vscode/
+.DS_Store
