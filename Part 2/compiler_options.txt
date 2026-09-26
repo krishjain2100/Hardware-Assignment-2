@@ -1,0 +1,1 @@
+-march=rv32imf_zve32x_zicsr_zifencei_zbb -mabi=ilp32 -O2

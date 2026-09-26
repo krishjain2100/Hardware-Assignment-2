@@ -62,7 +62,9 @@ module tb_matmul;
         .M(M), .K(K), .N(N),
         .WIDTH_IN(WIDTH_IN),
         .WIDTH_OUT(WIDTH_OUT),
-        .ADDR_WIDTH(ADDR_WIDTH)
+        .ADDR_WIDTH_A(ADDR_WIDTH),
+        .ADDR_WIDTH_B(ADDR_WIDTH),
+        .ADDR_WIDTH_C(ADDR_WIDTH)
     ) uut (
         .clk(clk),
         .reset(reset),

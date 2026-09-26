@@ -46,13 +46,12 @@ module matmul #(
         .valid_out(dp_valid_out)
     );
 
-    // FSM states
-    localparam IDLE     = 3'd0;
-    localparam FETCH    = 3'd1;
+
+    localparam IDLE = 3'd0;
+    localparam FETCH = 3'd1;
     localparam START_DP = 3'd2;
-    localparam WAIT_DP  = 3'd3;
-    localparam WRITE_C  = 3'd4;
-    localparam DONE     = 3'd5;
+    localparam WAIT_DP = 3'd3;
+    localparam DONE = 3'd4;
                
     reg [2:0] state;
 
@@ -60,6 +59,7 @@ module matmul #(
     reg [$clog2(M+1)-1:0] row_idx;
     reg [$clog2(N+1)-1:0] col_idx;
     reg [$clog2(K+2)-1:0] fetch_cnt;
+    reg [ADDR_WIDTH_A-1:0] row_base_addr;
 
     always @(posedge clk) begin
         if (reset) begin
@@ -72,6 +72,8 @@ module matmul #(
             dp_valid_in <= 0;
             dp_reset <= 1;
             row_loaded <= 0;
+            row_base_addr <= 0;
+            addr_c <= 0;
         end else begin
 
             we_c <= 0;
@@ -89,12 +91,11 @@ module matmul #(
 
                 FETCH: begin
                     if (fetch_cnt < K) begin
-                        if (!row_loaded) addr_a <= (row_idx * K) + fetch_cnt;
-                        addr_b <= (fetch_cnt * N) + col_idx;
+                        if (!row_loaded) addr_a <= (fetch_cnt == 0) ? row_base_addr : addr_a + 1;
+                        addr_b <= (fetch_cnt == 0) ? col_idx : addr_b + N;
                     end
                     if (fetch_cnt >= 2) begin
-                        if (!row_loaded)
-                            row_buffer[(fetch_cnt - 2) * WIDTH_IN +: WIDTH_IN] <= data_a;
+                        if (!row_loaded) row_buffer[(fetch_cnt - 2) * WIDTH_IN +: WIDTH_IN] <= data_a;
                         col_buffer[(fetch_cnt - 2) * WIDTH_IN +: WIDTH_IN] <= data_b;
                     end
 
@@ -115,28 +116,26 @@ module matmul #(
                     if (dp_valid_out) begin
                         dp_valid_in <= 0;
                         dp_reset <= 1;
-                        addr_c <= (row_idx * N) + col_idx;
                         data_c <= dp_result;
                         we_c <= 1;
-                        state <= WRITE_C;
-                    end
-                end
-                
-                WRITE_C: begin
-                    if (col_idx == N - 1) begin
-                        col_idx <= 0;
-                        row_loaded <= 0;
-                        
-                        if (row_idx == M - 1) begin
-                            state <= DONE;
+                        addr_c <= addr_c + 1; 
+
+                        if (col_idx == N - 1) begin
+                            col_idx <= 0;
+                            row_loaded <= 0;
+
+                            if (row_idx == M - 1) begin
+                                state <= DONE;
+                            end else begin
+                                row_idx <= row_idx + 1;
+                                row_base_addr <= row_base_addr + K;
+                                state <= FETCH;
+                            end
                         end else begin
-                            row_idx <= row_idx + 1;
+                            col_idx <= col_idx + 1;
+                            row_loaded <= 1;
                             state <= FETCH;
                         end
-                    end else begin
-                        col_idx <= col_idx + 1;
-                        row_loaded <= 1; 
-                        state <= FETCH;
                     end
                 end
                 
