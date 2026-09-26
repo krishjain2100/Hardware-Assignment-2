@@ -1,7 +1,7 @@
 module bram #(
     parameter DATA_WIDTH = 8,
-    parameter ADDR_WIDTH = 6, // 6 bits can address 64 slots (for an 8x8 matrix)
     parameter MEM_DEPTH = 64,
+    parameter ADDR_WIDTH = (MEM_DEPTH > 1) ? $clog2(MEM_DEPTH) : 1,
     parameter INIT_FILE = "" // Path to the text file
 ) (
     input wire clk,

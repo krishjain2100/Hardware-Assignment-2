@@ -1,5 +1,5 @@
 module dot_product #(
-    parameter K = 3, // number of elements in the vectors
+    parameter K = 8, // number of elements in the vectors
     parameter WIDTH_IN = 8,
     parameter WIDTH_OUT = 32
 ) (

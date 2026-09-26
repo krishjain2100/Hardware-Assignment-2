@@ -4,16 +4,18 @@ module matmul #(
     parameter N = 8,
     parameter WIDTH_IN = 8,
     parameter WIDTH_OUT = 32,
-    parameter ADDR_WIDTH = 6 // 6 bits to address 64 elements
+    parameter ADDR_WIDTH_A = (M * K > 1) ? $clog2(M * K) : 1,
+    parameter ADDR_WIDTH_B = (K * N > 1) ? $clog2(K * N) : 1,
+    parameter ADDR_WIDTH_C = (M * N > 1) ? $clog2(M * N) : 1
 ) (
     input wire clk,
     input wire reset,
     input wire valid_in,
-    output reg [ADDR_WIDTH-1:0] addr_a,        // A (Read Only)
+    output reg [ADDR_WIDTH_A-1:0] addr_a,        // A (Read Only)
     input wire signed [WIDTH_IN-1:0] data_a,
-    output reg [ADDR_WIDTH-1:0] addr_b,        // B (Read Only)
+    output reg [ADDR_WIDTH_B-1:0] addr_b,        // B (Read Only)
     input wire signed [WIDTH_IN-1:0] data_b,
-    output reg [ADDR_WIDTH-1:0] addr_c,        // C (Write Only)
+    output reg [ADDR_WIDTH_C-1:0] addr_c,        // C (Write Only)
     output reg signed [WIDTH_OUT-1:0] data_c,
     output reg we_c,
     
