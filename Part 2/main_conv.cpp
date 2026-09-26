@@ -14,13 +14,9 @@ int main() {
 
     convolve(img, kernel, output);
 
-    printf("\nConvolution Result (First 2x2 block):\n");
-    for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < 2; j++) {
-            printf("%d ", output[i][j]);
-        }
-        printf("\n");
+    if (output[0][0] == -9 && output[0][1] == -10 && output[1][0] == -17 && output[1][1] == -18) {
+        return 2; 
     }
 
-    return 0;
+    return 1; // FAIL
 }

@@ -15,7 +15,7 @@ int main() {
     multiply(A, B, C);
 
     if (C[0][0] == 8 && C[0][1] == 16 && C[1][0] == 16 && C[1][1] == 32) {
-        return 99; 
+        return 2; 
     }
     return 1; // FAIL
 
