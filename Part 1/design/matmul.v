@@ -18,42 +18,19 @@ module matmul #(
     output reg [ADDR_WIDTH_C-1:0] addr_c,        // C (Write Only)
     output reg signed [WIDTH_OUT-1:0] data_c,
     output reg we_c,
-    
+
     output reg  valid_out
 );
 
     reg signed [(K*WIDTH_IN)-1:0] row_buffer;
-    reg signed [(K*WIDTH_IN)-1:0] col_buffer;
-
-    reg dp_valid_in;
-    wire dp_valid_out;
-    reg dp_reset;
-    wire signed [WIDTH_OUT-1:0] dp_result;
-
     reg row_loaded;
 
-    dot_product #(
-        .K(K),
-        .WIDTH_IN(WIDTH_IN),
-        .WIDTH_OUT(WIDTH_OUT)
-    ) dp_engine (
-        .clk(clk),
-        .reset(dp_reset),
-        .valid_in(dp_valid_in),
-        .row_a(row_buffer),
-        .col_b(col_buffer),
-        .result(dp_result),
-        .valid_out(dp_valid_out)
-    );
+    reg signed [WIDTH_OUT-1:0] acc;
 
-
-    localparam IDLE = 3'd0;
-    localparam FETCH = 3'd1;
-    localparam START_DP = 3'd2;
-    localparam WAIT_DP = 3'd3;
-    localparam DONE = 3'd4;
-               
-    reg [2:0] state;
+    localparam IDLE = 2'd0;
+    localparam PIPE = 2'd1;
+    localparam DONE = 2'd2;
+    reg [1:0] state;
 
     // Iterators
     reg [$clog2(M+1)-1:0] row_idx;
@@ -61,87 +38,74 @@ module matmul #(
     reg [$clog2(K+2)-1:0] fetch_cnt;
     reg [ADDR_WIDTH_A-1:0] row_base_addr;
 
+    wire signed [WIDTH_IN-1:0] data_a_use = row_loaded ? row_buffer[(fetch_cnt - 2) * WIDTH_IN +: WIDTH_IN] : data_a;
+
     always @(posedge clk) begin
         if (reset) begin
+            addr_a <= 0;
+            addr_b <= 0;
+            addr_c <= 0;
+            data_c <= 0;
+            we_c <= 0;
+            valid_out <= 0;
+            acc <= 0;
             state <= IDLE;
             row_idx <= 0;
             col_idx <= 0;
             fetch_cnt <= 0;
-            we_c <= 0;
-            valid_out <= 0;
-            dp_valid_in <= 0;
-            dp_reset <= 1;
-            row_loaded <= 0;
             row_base_addr <= 0;
-            addr_c <= 0;
+            row_loaded <= 0;
         end else begin
-
             we_c <= 0;
-            dp_reset <= 0;
-            
+            if (we_c) addr_c <= addr_c + 1;
             case (state)
                 IDLE: begin
                     valid_out <= 0;
+                    acc <= 0;
                     row_idx <= 0;
                     col_idx <= 0;
                     fetch_cnt <= 0;
+                    row_base_addr <= 0;
                     row_loaded <= 0;
-                    if (valid_in) state <= FETCH;
+                    if (valid_in) state <= PIPE;
                 end
 
-                FETCH: begin
+                PIPE: begin
                     if (fetch_cnt < K) begin
                         if (!row_loaded) addr_a <= (fetch_cnt == 0) ? row_base_addr : addr_a + 1;
                         addr_b <= (fetch_cnt == 0) ? col_idx : addr_b + N;
                     end
                     if (fetch_cnt >= 2) begin
-                        if (!row_loaded) row_buffer[(fetch_cnt - 2) * WIDTH_IN +: WIDTH_IN] <= data_a;
-                        col_buffer[(fetch_cnt - 2) * WIDTH_IN +: WIDTH_IN] <= data_b;
-                    end
-
-                    if (fetch_cnt == K + 1) begin
-                        fetch_cnt <= 0;
-                        state <= START_DP;
-                    end else begin
-                        fetch_cnt <= fetch_cnt + 1;
-                    end
-                end
-                
-                START_DP: begin
-                    dp_valid_in <= 1;
-                    state <= WAIT_DP;
-                end
-                
-                WAIT_DP: begin
-                    if (dp_valid_out) begin
-                        dp_valid_in <= 0;
-                        dp_reset <= 1;
-                        data_c <= dp_result;
-                        we_c <= 1;
-                        addr_c <= addr_c + 1; 
-
-                        if (col_idx == N - 1) begin
-                            col_idx <= 0;
-                            row_loaded <= 0;
-
-                            if (row_idx == M - 1) begin
-                                state <= DONE;
+                        if (!row_loaded) begin
+                            row_buffer[(fetch_cnt - 2) * WIDTH_IN +: WIDTH_IN] <= data_a;
+                        end
+                        if (fetch_cnt == K + 1) begin
+                            data_c <= acc + (data_a_use * data_b);
+                            we_c <= 1;
+                            acc <= 0;
+                            if (col_idx == N - 1) begin
+                                col_idx <= 0;
+                                row_loaded <= 0;
+                                if (row_idx == M - 1) begin
+                                    state <= DONE;
+                                end else begin
+                                    row_idx <= row_idx + 1;
+                                    row_base_addr <= row_base_addr + K;
+                                end
                             end else begin
-                                row_idx <= row_idx + 1;
-                                row_base_addr <= row_base_addr + K;
-                                state <= FETCH;
+                                col_idx <= col_idx + 1;
+                                row_loaded <= 1;
                             end
                         end else begin
-                            col_idx <= col_idx + 1;
-                            row_loaded <= 1;
-                            state <= FETCH;
+                            acc <= acc + (data_a_use * data_b);
                         end
                     end
+                    fetch_cnt <= (fetch_cnt == K + 1) ? 0 : fetch_cnt + 1;
                 end
-                
+
                 DONE: begin
                     valid_out <= 1;
-                    if (!valid_in) begin 
+                    if (!valid_in) begin
                         valid_out <= 0;
                         state <= IDLE;
                     end
